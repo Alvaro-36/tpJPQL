@@ -73,6 +73,15 @@ public class Main {
                     .esParaElaborar(true)
                     .unidadMedida(unidadMedida)
                     .build();
+            ArticuloInsumo articuloInsumoCigarrillo = ArticuloInsumo.builder()
+                    .denominacion("Cigarrillo").codigo(UUID.randomUUID().toString())
+                    .precioCompra(2.5)
+                    .precioVenta(300d)
+                    .stockActual(130)
+                    .stockMaximo(20000)
+                    .esParaElaborar(false)
+                    .unidadMedida(unidadMedida)
+                    .build();
 
             // Persistir la entidad ArticuloInsumo en estado "gestionada"
 
@@ -180,24 +189,31 @@ public class Main {
 
             em.persist(factura);
 
+            FacturaDetalle detalleFactura2_1 = new FacturaDetalle(10, articuloInsumo); // Manzana
+            detalleFactura2_1.calcularSubTotal();
+
+            FacturaDetalle detalleFactura2_2 = new FacturaDetalle(5, articuloInsumoPera); // Pera
+            detalleFactura2_2.calcularSubTotal();
+
+            FacturaDetalle detalleFactura2_3 = new FacturaDetalle(2, articuloManufacturado); // Ensalada
+            detalleFactura2_3.calcularSubTotal();
+
             Factura factura2 = Factura.builder()
                     .puntoVenta(2025)
                     .fechaAlta(new Date())
                     .fechaComprobante(LocalDate.now())
-                    .cliente(cliente)
+                    .cliente(cliente) // Asumo que 'cliente' está disponible en este alcance
                     .nroComprobante(FuncionApp.generateRandomNumber())
                     .build();
-            factura.addDetalleFactura(detalle1);
-            factura.addDetalleFactura(detalle2);
-            factura.addDetalleFactura(detalle3);
-            factura.calcularTotal();
+
+            factura2.addDetalleFactura(detalleFactura2_1);
+            factura2.addDetalleFactura(detalleFactura2_2);
+            factura2.addDetalleFactura(detalleFactura2_3);
+            factura2.calcularTotal();
 
             em.persist(factura2);
 
             em.getTransaction().commit();
-
-            // Crear la consulta SQL nativa
-            // Crear la consulta JPQL
 
             String jpql = "SELECT am FROM ArticuloManufacturado am LEFT JOIN FETCH am.detalles d WHERE am.id = :id";
             Query query = em.createQuery(jpql);
@@ -240,6 +256,7 @@ public class Main {
             String obtenerTodosClientes = "FROM Cliente";
             query = em.createQuery(obtenerTodosClientes);
             List<Cliente> clientes = query.getResultList();
+            System.out.println("Todos los clientes:");
             for (Cliente c : clientes)
                 System.out.println(c.getRazonSocial());
 
@@ -288,9 +305,9 @@ public class Main {
             System.out.println(total);
 
 
-            /// ARREGLAR EJERCICIO 7
+
             //Ejercicio7
-            String articulosFactura = "SELECT FacturaDetalle.articulo FROM FacturaDetalle WHERE FacturaDetalle.factura.nroComprobante = :nroComprobante";
+            String articulosFactura = "SELECT fd.articulo FROM FacturaDetalle fd WHERE fd.factura.nroComprobante = :nroComprobante";
             query = em.createQuery(articulosFactura);
             query.setParameter("nroComprobante", 769910L);
             List<Articulo> articulos = query.getResultList();
@@ -299,8 +316,73 @@ public class Main {
                 System.out.println(a.getDenominacion());
 
 
+            //Ejercicio 8
+            String articulosFacturaMasCaro = "SELECT fd.articulo FROM FacturaDetalle fd WHERE fd.factura.nroComprobante = :nroComprobante ORDER BY fd.articulo.precioVenta DESC ";
+            query = em.createQuery(articulosFacturaMasCaro);
+            query.setParameter("nroComprobante", 769910L);
+            query.setMaxResults(1);
+            List<Articulo> articuloCaro = query.getResultList();
+            System.out.println("Articulo mas caro:");
+            for (Articulo a : articuloCaro)
+                System.out.println(a.getDenominacion());
+
+            //Ejercicio 9
+            String cantFacturas = "SELECT COUNT(f) FROM Factura f";
+            query = em.createQuery(cantFacturas);
+            Long cant = (Long) query.getSingleResult();
+            System.out.println("Cantidad total de facturas en el sistema: " + cant);
+
+            //Ejercicio 10
+            Query  queryPrimerElemento;
+            String factMayorXMonto = "SELECT f FROM Factura f JOIN f.detallesFactura d GROUP BY f.nroComprobante HAVING SUM(d.subTotal) > :monto ";
+            queryPrimerElemento = em.createQuery(factMayorXMonto);
+            queryPrimerElemento.setParameter("monto", 1.0);
+            List<Factura> facturasMayorXMonto = queryPrimerElemento.getResultList();
+            System.out.println("Facturas con monto mayor a 1:");
+            for(Factura f :facturasMayorXMonto)
+                System.out.println(f.getNroComprobante());
+
+            //Ejercicio 11
+            String factConArt = "SELECT DISTINCT f FROM Factura f JOIN f.detallesFactura d JOIN d.articulo a WHERE a.denominacion = :nombre";
+            query = em.createQuery(factConArt);
+            query.setParameter("nombre", "Manzana");
+            List<Factura> facturasConManzana = query.getResultList();
+            System.out.println("Facturas con Manzana:");
+            for(Factura f :facturasConManzana)
+                System.out.println(f.getNroComprobante());
 
 
+            //EJERCICIO 12
+
+            String codParcial = "FROM Articulo a WHERE a.codigo LIKE :codigo";
+            query = em.createQuery(codParcial);
+            query.setParameter("codigo", "M%");
+            List<Articulo> articulosCodParcial = query.getResultList();
+            System.out.println("Articulos con codigo que empieza con M:");
+            for(Articulo a : articulosCodParcial)
+                System.out.println(a.getDenominacion());
+
+            //EJERCICIO 13
+            String precioMayorPromedio = "FROM Articulo a WHERE a.precioVenta  > (SELECT AVG(a2.precioVenta) FROM Articulo a2)";
+            query = em.createQuery(precioMayorPromedio);
+            List<Articulo> articulosPrecioMayorPromedio = query.getResultList();
+            System.out.println("Articulos con precio mayor al promedio");
+            for(Articulo a : articulosPrecioMayorPromedio)
+                System.out.println(a.getDenominacion());
+
+            //EJERCICIO 14
+            String consultaEXISTS = "SELECT a FROM Articulo a\n" +
+                    "WHERE EXISTS (\n" +
+                    "    SELECT 1 FROM FacturaDetalle d WHERE d.articulo = a\n" +
+                    ")";
+            query = em.createQuery(consultaEXISTS);
+            List<Articulo> articulosConDetalle = query.getResultList();
+            System.out.println("Articulos que estan en al menos una factura");
+            for(Articulo a : articulosConDetalle)
+                System.out.println(a.getDenominacion());
+
+//La clausula EXISTS devuelve TRUE si existe al menos una fila con la condicion indicada, en este caso devuelve true si el articulo forma
+// parte de un detalle factura y por ende de una factura
 
 
 
@@ -317,23 +399,6 @@ public class Main {
     }
 }
 
-/*
 
-Manejo del Ciclo de Estados en JPA
-El ciclo de estados en JPA (Java Persistence API) define los diferentes estados que puede tener una entidad en relación con el contexto de persistencia (EntityManager). Comprender y manejar correctamente estos estados es crucial para trabajar eficazmente con JPA. Los estados del ciclo de vida de una entidad en JPA son:
-
-New (Nuevo):
-
-Una entidad está en estado "New" cuando ha sido creada pero aún no ha sido persistida en la base de datos.
-Managed (Gestionado):
-
-Una entidad está en estado "Managed" cuando está asociada con un contexto de persistencia (EntityManager) y cualquier cambio en la entidad se reflejará automáticamente en la base de datos.
-Detached (Desconectado):
-
-Una entidad está en estado "Detached" cuando ya no está asociada con un contexto de persistencia. Los cambios en la entidad no se reflejarán automáticamente en la base de datos.
-Removed (Eliminado):
-
-Una entidad está en estado "Removed" cuando ha sido marcada para su eliminación en la base de datos.
-*/
 
 
